@@ -556,31 +556,39 @@ if (tiltCard) {
     targetTiltY = 0;
   });
 }
-// ===== MOBILE-ONLY GYRO PARALLAX FOR HOME IMAGE =====
+// ===== STRONG & VISIBLE MOBILE GYRO PARALLAX =====
 (function () {
   const tiltCard = document.querySelector(".tilt-card");
   if (!tiltCard) return;
 
   const img = tiltCard.querySelector("img");
 
-  // Only enable on mobile screens
+  // Only on mobile
   const isMobile = window.matchMedia("(max-width: 768px)").matches;
   if (!isMobile) return;
 
-  let currentX = 0;
-  let currentY = 0;
-  let targetX = 0;
-  let targetY = 0;
+  let currentRotX = 0;
+  let currentRotY = 0;
+  let currentMoveX = 0;
+  let currentMoveY = 0;
+
+  let targetRotX = 0;
+  let targetRotY = 0;
+  let targetMoveX = 0;
+  let targetMoveY = 0;
 
   function animate() {
-    // Smooth easing (no jerk)
-    currentX += (targetX - currentX) * 0.08;
-    currentY += (targetY - currentY) * 0.08;
+    // Smooth easing (lerp)
+    currentRotX += (targetRotX - currentRotX) * 0.1;
+    currentRotY += (targetRotY - currentRotY) * 0.1;
+    currentMoveX += (targetMoveX - currentMoveX) * 0.1;
+    currentMoveY += (targetMoveY - currentMoveY) * 0.1;
 
     img.style.transform = `
-      rotateX(${currentY}deg)
-      rotateY(${currentX}deg)
-      scale(1.05)
+      translate3d(${currentMoveX}px, ${currentMoveY}px, 0)
+      rotateX(${currentRotX}deg)
+      rotateY(${currentRotY}deg)
+      scale(1.08)
     `;
 
     requestAnimationFrame(animate);
@@ -589,12 +597,20 @@ if (tiltCard) {
   animate();
 
   function handleOrientation(event) {
-    const gamma = event.gamma || 0; // left-right
-    const beta = event.beta || 0;  // front-back
+    const gamma = event.gamma || 0; // left-right (-90 to 90)
+    const beta = event.beta || 0;   // front-back (-180 to 180)
 
-    // Subtle, premium movement (clamped)
-    targetX = Math.max(-10, Math.min(10, gamma / 3));
-    targetY = Math.max(-10, Math.min(10, (beta - 45) / 3));
+    // Clamp values
+    const g = Math.max(-30, Math.min(30, gamma));
+    const b = Math.max(-30, Math.min(30, beta - 45));
+
+    // 🔥 Rotation (VERY visible)
+    targetRotY = g * 0.6;   // left-right tilt
+    targetRotX = -b * 0.6;  // up-down tilt
+
+    // 🔥 Translation (parallax shift)
+    targetMoveX = g * 2;    // move left-right in px
+    targetMoveY = b * 2;    // move up-down in px
   }
 
   // iOS permission handling
@@ -603,19 +619,21 @@ if (tiltCard) {
     typeof DeviceOrientationEvent.requestPermission === "function"
   ) {
     const askPermission = () => {
-      DeviceOrientationEvent.requestPermission().then(response => {
-        if (response === "granted") {
-          window.addEventListener("deviceorientation", handleOrientation, true);
-        }
-      }).catch(console.error);
+      DeviceOrientationEvent.requestPermission()
+        .then(response => {
+          if (response === "granted") {
+            window.addEventListener("deviceorientation", handleOrientation, true);
+          }
+        })
+        .catch(console.error);
 
       window.removeEventListener("click", askPermission);
     };
 
-    // Ask permission on first tap
+    // Ask on first tap
     window.addEventListener("click", askPermission);
   } else {
-    // Android & others
+    // Android
     window.addEventListener("deviceorientation", handleOrientation, true);
   }
 })();
